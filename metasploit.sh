@@ -22,26 +22,29 @@ source <(echo "c3Bpbm5lcj0oICd8JyAnLycgJy0nICdcJyApOwoKY291bnQoKXsKICBzcGluICYKI
 echo
 center "*** Dependencies installation..."
 
-# Remove not working repositories
+## Remove not working repositories
 rm $PREFIX/etc/apt/sources.list.d/*
 
-# Add gushmazuko repository to install ruby 2.7.2 version
-echo 'deb https://github.com/gushmazuko/metasploit_in_termux/raw/master gushmazuko main'  | tee $PREFIX/etc/apt/sources.list.d/gushmazuko.list
+## Install gnupg required to sign repository
+# pkg install -y gnupg
 
-pkg install -y gnupg
-curl -fsSL https://raw.githubusercontent.com/gushmazuko/metasploit_in_termux/master/gushmazuko-gpg.pubkey | gpg --dearmor | tee $PREFIX/etc/apt/trusted.gpg.d/gushmazuko-repo.gpg
+## Sign gushmazuko repository
+# curl -fsSL https://raw.githubusercontent.com/gushmazuko/metasploit_in_termux/master/gushmazuko-gpg.pubkey | gpg --dearmor | tee $PREFIX/etc/apt/trusted.gpg.d/gushmazuko-repo.gpg
 
-# Set low priority for all gushmazuko repository (for security purposes)
-# Set highest priority for ruby package from gushmazuko repository
-echo '## Set low priority for all gushmazuko repository (for security purposes)
-Package: *
-Pin: release gushmazuko
-Pin-Priority: 100
+## Add gushmazuko repository to install ruby 2.7.2 version
+# echo 'deb https://github.com/gushmazuko/metasploit_in_termux/raw/master gushmazuko main'  | tee $PREFIX/etc/apt/sources.list.d/gushmazuko.list
+
+## Set low priority for all gushmazuko repository (for security purposes)
+## Set highest priority for ruby package from gushmazuko repository
+# echo '## Set low priority for all gushmazuko repository (for security purposes)
+# Package: *
+# Pin: release gushmazuko
+# Pin-Priority: 100
 
 ## Set highest priority for ruby package from gushmazuko repository
-Package: ruby
-Pin: release gushmazuko
-Pin-Priority: 1001' | tee $PREFIX/etc/apt/preferences.d/preferences
+# Package: ruby
+# Pin: release gushmazuko
+# Pin-Priority: 1001' | tee $PREFIX/etc/apt/preferences.d/preferences
 
 # Purge installed ruby
 apt purge ruby -y
@@ -59,18 +62,21 @@ source <(curl -sL https://github.com/termux/termux-packages/files/2912002/fix-ru
 
 echo
 center "*** Erasing old metasploit folder..."
-rm -rf $HOME/metasploit-framework
+rm -rf $PREFIX/opt/metasploit-framework
 
 echo
 center "*** Downloading..."
-cd $HOME
+cd $PREFIX/opt
 git clone https://github.com/rapid7/metasploit-framework.git --depth=1
 
 echo
 center "*** Installation..."
-cd $HOME/metasploit-framework
-sed '/rbnacl/d' -i Gemfile.lock
-sed '/rbnacl/d' -i metasploit-framework.gemspec
+cd $PREFIX/opt/metasploit-framework
+# sed '/rbnacl/d' -i Gemfile.lock
+# sed '/rbnacl/d' -i metasploit-framework.gemspec
+
+sed -i "277,\$ s/2.8.0/2.2.0/" Gemfile.lock
+
 gem install bundler
 sed 's|nokogiri (1.*)|nokogiri (1.8.0)|g' -i Gemfile.lock
 
@@ -81,34 +87,35 @@ bundle update activesupport
 bundle update --bundler
 bundle install -j$(nproc --all)
 $PREFIX/bin/find -type f -executable -exec termux-fix-shebang \{\} \;
-rm ./modules/auxiliary/gather/http_pdf_authors.rb
+# rm ./modules/auxiliary/gather/http_pdf_authors.rb
 if [ -e $PREFIX/bin/msfconsole ];then
 	rm $PREFIX/bin/msfconsole
 fi
 if [ -e $PREFIX/bin/msfvenom ];then
 	rm $PREFIX/bin/msfvenom
 fi
-ln -s $HOME/metasploit-framework/msfconsole /data/data/com.termux/files/usr/bin/
-ln -s $HOME/metasploit-framework/msfvenom /data/data/com.termux/files/usr/bin/
-termux-elf-cleaner /data/data/com.termux/files/usr/lib/ruby/gems/2.4.0/gems/pg-0.20.0/lib/pg_ext.so
-
-echo
-center "*** Database configuration..."
-cd $HOME/metasploit-framework/config
-curl -sLO https://raw.githubusercontent.com/gushmazuko/metasploit_in_termux/master/database.yml
-
-mkdir -p $PREFIX/var/lib/postgresql
-initdb $PREFIX/var/lib/postgresql
-
-pg_ctl -D $PREFIX/var/lib/postgresql start
-createuser msf
-createdb msf_database
-
-cd $HOME
-curl -sLO https://raw.githubusercontent.com/gushmazuko/metasploit_in_termux/master/postgresql_ctl.sh
-chmod +x postgresql_ctl.sh
+ln -s $PREFIX/opt/metasploit-framework/msfconsole $PREFIX/bin/
+ln -s $PREFIX/opt/metasploit-framework/msfvenom $PREFIX/bin/
+termux-elf-cleaner $PREFIX/lib/ruby/gems/*/gems/pg-*/lib/pg_ext.so
 
 echo
 center "*"
-echo -e "\033[32m Installation complete. \n To start msf database use: ./postgresql_ctl.sh start \n Launch metasploit by executing: msfconsole\033[0m"
+echo -e "\033[32m Suppressing Warnings\033[0m"
+
+# sed -i '355 s/::Exception, //' $PREFIX/bin/msfvenom
+# sed -i '481, 483 {s/^/#/}' $PREFIX/bin/msfvenom
+
+# sed -Ei "s/(\^\\\c\s+)/(\^\\\C-\\\s)/" $PREFIX/opt/metasploit-framework/lib/msf/core/exploit/remote/vim_soap.rb
+sed -i '86 {s/^/#/};96 {s/^/#/}' $PREFIX/lib/ruby/gems/3.1.0/gems/concurrent-ruby-1.0.5/lib/concurrent/atomic/ruby_thread_local_var.rb
+# sed -i '442, 476 {s/^/#/};436, 438 {s/^/#/}' $PREFIX/lib/ruby/gems/3.1.0/gems/logging-2.3.0/lib/logging/diagnostic_context.rb
+
+## Fix "OpenSSL::Cipher::CipherError" error
+sed -i '13,15 {s/^/#/}' $PREFIX/lib/ruby/gems/3.1.0/gems/hrr_rb_ssh-0.4.2/lib/hrr_rb_ssh/transport/encryption_algorithm/functionable.rb
+sed -i '14 {s/^/#/}' $PREFIX/lib/ruby/gems/3.1.0/gems/hrr_rb_ssh-0.4.2/lib/hrr_rb_ssh/transport/server_host_key_algorithm/ecdsa_sha2_nistp256.rb
+sed -i '14 {s/^/#/}' $PREFIX/lib/ruby/gems/3.1.0/gems/hrr_rb_ssh-0.4.2/lib/hrr_rb_ssh/transport/server_host_key_algorithm/ecdsa_sha2_nistp384.rb
+sed -i '14 {s/^/#/}' $PREFIX/lib/ruby/gems/3.1.0/gems/hrr_rb_ssh-0.4.2/lib/hrr_rb_ssh/transport/server_host_key_algorithm/ecdsa_sha2_nistp521.rb
+
+echo
+center "*"
+echo -e "\033[32m Installation complete. \n Launch metasploit by executing: msfconsole\033[0m"
 center "*"
